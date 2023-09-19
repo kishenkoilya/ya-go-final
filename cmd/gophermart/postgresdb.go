@@ -108,6 +108,50 @@ func (db *DBConnection) GetUserInfo(login string) RetryFunc {
 	}
 }
 
-func (db *DBConnection) CreateAuthToken(login, hash string) (string, error) {
-	return "", nil
+func (db *DBConnection) CreateAuthToken(login, hash string) RetryFunc {
+	return func() (interface{}, error) {
+		return nil, nil
+	}
+}
+
+func (db *DBConnection) CheckAuthToken(auth string) RetryFunc {
+	return func() (interface{}, error) {
+		return nil, nil
+	}
+}
+
+func (db *DBConnection) LoadOrderNumber(auth, orderNum string) RetryFunc {
+	return func() (interface{}, error) {
+		return nil, nil
+	}
+}
+
+type OrderInfo struct {
+	Number      string `json:"number"`
+	Status      string `json:"status"`
+	Accrual     string `json:"accrual"`
+	Uploaded_at string `json:"uploaded_at"`
+}
+
+func (db *DBConnection) GetOrdersInfo(auth string) RetryFunc {
+	return func() (interface{}, error) {
+		return nil, nil
+	}
+}
+
+type BalanceInfo struct {
+	Current   float64 `json:"current"`
+	Withdrawn float64 `json:"withdrawn"`
+}
+
+func (db *DBConnection) GetBalanceInfo(auth string) RetryFunc {
+	return func() (interface{}, error) {
+		return nil, nil
+	}
+}
+
+func (db *DBConnection) WithdrawBalance(auth, order string, sum float64) RetryFunc {
+	return func() (interface{}, error) {
+		return nil, nil
+	}
 }
