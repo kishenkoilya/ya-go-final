@@ -139,25 +139,25 @@ func loginPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func authorization(authData string, db *DBConnection) (int, error) {
+func authorization(authData string, db *DBConnection) (int, int, error) {
 	if authData == "" {
 		err := errors.New("Unauthorized")
-		return http.StatusUnauthorized, err
+		return http.StatusUnauthorized, -1, err
 	}
 	obj, err := Retrypg(pgerrcode.ConnectionException, db.CheckAuthToken(authData))
 	if err != nil {
-		return http.StatusInternalServerError, err
+		return http.StatusInternalServerError, -1, err
 	}
-	authorized := obj.(bool)
-	if !authorized {
+	loginID := obj.(int)
+	if loginID != -1 {
 		err := errors.New("Unauthorized")
-		return http.StatusUnauthorized, err
+		return http.StatusUnauthorized, -1, err
 	}
-	return http.StatusOK, nil
+	return http.StatusOK, loginID, nil
 }
 
-func uploadOrderNumber(auth, numb string, db *DBConnection) (int, error) {
-	obj, err := Retrypg(pgerrcode.ConnectionException, db.LoadOrderNumber(auth, numb))
+func uploadOrderNumber(loginID int, numb string, db *DBConnection) (int, error) {
+	obj, err := Retrypg(pgerrcode.ConnectionException, db.LoadOrderNumber(loginID, numb))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -169,10 +169,12 @@ func uploadOrderNumber(auth, numb string, db *DBConnection) (int, error) {
 	return http.StatusAccepted, nil
 }
 
+// сделать функцию, которая в отдельной горутине обращается к системе расчёта начислений баллов лояльности, и когда получает ответ, отправляет его в бд.
+
 func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
 	auth := r.Header.Get("Authorization")
-	code, err := authorization(auth, handlerVars.db)
+	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return
@@ -199,7 +201,7 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		return
 	}
 
-	code, err = uploadOrderNumber(auth, orderNum, handlerVars.db)
+	code, err = uploadOrderNumber(loginID, orderNum, handlerVars.db)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return
@@ -210,13 +212,13 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 func getOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
 	auth := r.Header.Get("Authorization")
-	code, err := authorization(auth, handlerVars.db)
+	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return
 	}
 
-	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetOrdersInfo(auth))
+	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetOrdersInfo(loginID))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -241,13 +243,13 @@ func getOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 func balancePage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
 	auth := r.Header.Get("Authorization")
-	code, err := authorization(auth, handlerVars.db)
+	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return
 	}
 
-	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetBalanceInfo(auth))
+	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetBalanceInfo(loginID))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -270,8 +272,8 @@ type WithdrawInfo struct {
 	Sum   float64 `json:"sum"`
 }
 
-func withdrawBalance(auth, order string, sum float64, db *DBConnection) (int, error) {
-	obj, err := Retrypg(pgerrcode.ConnectionException, db.WithdrawBalance(auth, order, sum))
+func withdrawBalance(loginID int, order string, sum float64, db *DBConnection) (int, error) {
+	obj, err := Retrypg(pgerrcode.ConnectionException, db.WithdrawBalance(loginID, order, sum))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -291,7 +293,7 @@ func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.P
 	}
 
 	auth := r.Header.Get("Authorization")
-	code, err := authorization(auth, handlerVars.db)
+	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return
@@ -319,7 +321,7 @@ func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.P
 		return
 	}
 
-	code, err = withdrawBalance(auth, withdrawInfo.Order, withdrawInfo.Sum, handlerVars.db)
+	code, err = withdrawBalance(loginID, withdrawInfo.Order, withdrawInfo.Sum, handlerVars.db)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return
@@ -329,5 +331,27 @@ func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.P
 
 func withdrawalsPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
-	sugar.Infoln(handlerVars.psqlConnectLine)
+	auth := r.Header.Get("Authorization")
+	code, loginID, err := authorization(auth, handlerVars.db)
+	if err != nil {
+		http.Error(w, err.Error(), code)
+		return
+	}
+
+	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetWithdrawalsInfo(loginID))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	withdrawalsInfo := obj.(*WithdrawalsInfo)
+
+	respJSON, err := json.Marshal(&withdrawalsInfo)
+	if err != nil {
+		http.Error(w, "Response from database coult not be marshaled to json. "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(respJSON)
 }

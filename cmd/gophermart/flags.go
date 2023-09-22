@@ -9,19 +9,15 @@ import (
 )
 
 type Config struct {
-	Address        string `env:"ADDRESS"`
-	ReportInterval int    `env:"REPORT_INTERVAL"`
-	PollInterval   int    `env:"POLL_INTERVAL"`
-	Key            string `env:"KEY"`
-	RateLimit      int    `env:"RATE_LIMIT"`
+	Address              string `env:"RUN_ADDRESS"`
+	DatabaseUri          string `env:"DATABASE_URI"`
+	AccrualSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS"`
 }
 
 func getVars() *Config {
-	address := flag.String("a", "localhost:8080", "An address the server will listen to")
-	reportInterval := flag.Int("r", 10, "An interval for sending metrics to server")
-	pollInterval := flag.Int("p", 2, "An interval for collecting metrics")
-	key := flag.String("k", "", "Key for hash func")
-	rateLimit := flag.Int("l", 1, "A limit for concurrent requests")
+	address := flag.String("a", "", "An address the server will be running on")
+	databaseUri := flag.String("d", "", "An address database is located at")
+	accrualSystemAddress := flag.String("r", "", "An address of accrual system")
 
 	flag.Parse()
 
@@ -33,22 +29,16 @@ func getVars() *Config {
 	if cfg.Address == "" {
 		cfg.Address = *address
 	}
-	if cfg.ReportInterval == 0 {
-		cfg.ReportInterval = *reportInterval
+	if cfg.DatabaseUri == "" {
+		cfg.DatabaseUri = *databaseUri
 	}
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = *pollInterval
-	}
-	if cfg.Key == "" {
-		cfg.Key = *key
-	}
-	if cfg.RateLimit == 0 {
-		cfg.RateLimit = *rateLimit
+	if cfg.AccrualSystemAddress == "" {
+		cfg.AccrualSystemAddress = *accrualSystemAddress
 	}
 	return &cfg
 }
 
 func (conf *Config) printConfig() {
-	fmt.Printf("Address: %s; Report Interval: %d; Poll Interval: %d; Key: %s; Rate Limit: %d\n",
-		conf.Address, conf.ReportInterval, conf.PollInterval, conf.Key, conf.RateLimit)
+	fmt.Printf("Address: %s; Database Uri: %s; Accrual System Address: %s;\n",
+		conf.Address, conf.DatabaseUri, conf.AccrualSystemAddress)
 }

@@ -19,10 +19,19 @@ func HashPassword(password string) (string, string, error) {
 		return "", "", err
 	}
 
-	hashWithSalt := append(salt, hashedPassword...)
-	hashWithSaltBase64 := base64.StdEncoding.EncodeToString(hashWithSalt)
+	hashWithSaltBase64 := HashBase64(string(salt), string(hashedPassword))
 
 	return hashWithSaltBase64, string(salt), nil
+}
+
+func HashBase64(words ...string) string {
+	var hashWithSalt []byte
+	for _, w := range words {
+		bw := []byte(w)
+		hashWithSalt = append(hashWithSalt, bw...)
+	}
+	hashWithSaltBase64 := base64.StdEncoding.EncodeToString(hashWithSalt)
+	return hashWithSaltBase64
 }
 
 func CheckPassword(password, salt, hash string) (bool, error) {
