@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/jackc/pgerrcode"
 	"github.com/julienschmidt/httprouter"
 )
@@ -21,6 +24,12 @@ import (
 
 func runServer(config *Config) {
 	var handlerVars *HandlerVars
+	obj, err := Retrypg(pgerrcode.ConnectionException, NewDBConnection(config.DatabaseUri))
+	if err != nil {
+		panic(err)
+	}
+	handlerVars.db = obj.(*DBConnection)
+	handlerVars.AccrualSystemAddress = &config.AccrualSystemAddress
 
 	router := httprouter.New()
 	router.POST("/api/user/register", LoggingMiddleware(GzipMiddleware(ParamsMiddleware(registerPage, handlerVars))))
@@ -169,7 +178,43 @@ func uploadOrderNumber(loginID int, numb string, db *DBConnection) (int, error) 
 	return http.StatusAccepted, nil
 }
 
-// сделать функцию, которая в отдельной горутине обращается к системе расчёта начислений баллов лояльности, и когда получает ответ, отправляет его в бд.
+type ASAAnswer struct {
+	Order   string  `json:"order"`
+	Status  string  `json:"status"`
+	Accrual float64 `json:"accrual"`
+}
+
+func updateOrder(loginID int, numb string, handlerVars *HandlerVars) {
+	client := resty.New()
+	for {
+		resp, err := client.R().Get("http://" + *handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var ans ASAAnswer
+		err = json.Unmarshal(resp.Body(), &ans)
+		if err != nil {
+			time.Sleep(time.Second * 5)
+			continue
+		}
+
+		_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.UpdateOrder(loginID, ans.Accrual, ans.Order, ans.Status))
+		if err != nil {
+			panic(err)
+		}
+
+		if ans.Accrual > 0 {
+			_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.AddLoyaltyPoints(loginID, ans.Accrual))
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		if ans.Status == "INVALID" || ans.Status == "PROCESSED" {
+			break
+		}
+	}
+}
 
 func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
@@ -206,6 +251,7 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		http.Error(w, err.Error(), code)
 		return
 	}
+	go updateOrder(loginID, orderNum, handlerVars)
 	w.WriteHeader(code)
 }
 

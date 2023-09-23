@@ -9,6 +9,5 @@ var sugar zap.SugaredLogger
 func main() {
 	config := getVars()
 	config.printConfig()
-
 	runServer(config)
 }

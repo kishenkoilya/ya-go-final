@@ -12,9 +12,8 @@ import (
 )
 
 type HandlerVars struct {
-	psqlConnectLine *string
-	key             *string
-	db              *DBConnection
+	db                   *DBConnection
+	AccrualSystemAddress *string
 }
 
 func ParamsMiddleware(next httprouter.Handle, handlerVars *HandlerVars) httprouter.Handle {

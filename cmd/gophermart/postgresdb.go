@@ -55,9 +55,9 @@ type DBConnection struct {
 	conn *pgx.Conn
 }
 
-func NewDBConnection(psqlLine string) RetryFunc {
+func NewDBConnection(databaseUri string) RetryFunc {
 	return func() (interface{}, error) {
-		connConfig, err := pgx.ParseConnectionString(psqlLine)
+		connConfig, err := pgx.ParseConnectionString(databaseUri)
 		if err != nil {
 			return nil, err
 		}
@@ -218,6 +218,34 @@ func (db *DBConnection) LoadOrderNumber(loginID int, orderNum string) RetryFunc 
 			return -1, err
 		}
 		return orderID, nil
+	}
+}
+
+func (db *DBConnection) UpdateOrder(loginID int, accrual float64, orderNum, status string) RetryFunc {
+	return func() (interface{}, error) {
+		query := `UPDATE GophermartOrders 
+		SET accrual=$1, status=$2
+		WHERE number=$3`
+		res, err := db.conn.Exec(query, loginID, status, orderNum)
+		if err != nil {
+			return nil, err
+		}
+		sugar.Infoln(res)
+		return nil, nil
+	}
+}
+
+func (db *DBConnection) AddLoyaltyPoints(loginID int, accrual float64) RetryFunc {
+	return func() (interface{}, error) {
+		query := `UPDATE GophermartUsers 
+		SET current_balance=current_balance+$1
+		WHERE id=$2`
+		res, err := db.conn.Exec(query, accrual, loginID)
+		if err != nil {
+			return nil, err
+		}
+		sugar.Infoln(res)
+		return nil, nil
 	}
 }
 
