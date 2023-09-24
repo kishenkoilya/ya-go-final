@@ -217,7 +217,7 @@ type ASAAnswer struct {
 func updateOrder(loginID int, numb string, handlerVars *HandlerVars) {
 	client := resty.New()
 	for {
-		resp, err := client.R().Get("http://" + *handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
+		resp, err := client.R().Get(*handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
 		if err != nil {
 			sugar.Errorln(err.Error())
 		}
