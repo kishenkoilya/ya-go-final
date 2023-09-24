@@ -220,12 +220,12 @@ func (db *DBConnection) LoadOrderNumber(loginID int, orderNum string) RetryFunc 
 	}
 }
 
-func (db *DBConnection) UpdateOrder(loginID int, accrual float64, orderNum, status string) RetryFunc {
+func (db *DBConnection) UpdateOrder(accrual float64, orderNum, status string) RetryFunc {
 	return func() (interface{}, error) {
 		query := `UPDATE GophermartOrders 
 		SET accrual=$1, status=$2
 		WHERE number=$3`
-		res, err := db.conn.Exec(query, loginID, status, orderNum)
+		res, err := db.conn.Exec(query, accrual, status, orderNum)
 		if err != nil {
 			return nil, err
 		}

@@ -236,7 +236,7 @@ func updateOrder(loginID int, numb string, handlerVars *HandlerVars) {
 		}
 		sugar.Infoln(ans)
 
-		_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.UpdateOrder(loginID, ans.Accrual, ans.Order, ans.Status))
+		_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.UpdateOrder(ans.Accrual, ans.Order, ans.Status))
 		if err != nil {
 			panic(err)
 		}
