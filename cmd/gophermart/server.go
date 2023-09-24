@@ -217,7 +217,7 @@ func uploadOrderNumber(loginID int, numb string, db *DBConnection) (int, error) 
 type ASAAnswer struct {
 	Order   string  `json:"order"`
 	Status  string  `json:"status"`
-	Accrual float64 `json:"accrual"`
+	Accrual float32 `json:"accrual"`
 }
 
 func updateOrder(loginID int, numb string, handlerVars *HandlerVars) {
@@ -365,10 +365,10 @@ func balancePage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 type WithdrawInfo struct {
 	Order string  `json:"order"`
-	Sum   float64 `json:"sum"`
+	Sum   float32 `json:"sum"`
 }
 
-func withdrawBalance(loginID int, order string, sum float64, db *DBConnection) (int, error) {
+func withdrawBalance(loginID int, order string, sum float32, db *DBConnection) (int, error) {
 	obj, err := Retrypg(pgerrcode.ConnectionException, db.WithdrawBalance(loginID, order, sum))
 	if err != nil {
 		sugar.Errorln(err.Error())

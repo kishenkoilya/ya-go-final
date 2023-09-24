@@ -223,7 +223,7 @@ func (db *DBConnection) LoadOrderNumber(loginID int, orderNum string) RetryFunc 
 	}
 }
 
-func (db *DBConnection) UpdateOrder(accrual float64, orderNum, status string) RetryFunc {
+func (db *DBConnection) UpdateOrder(accrual float32, orderNum, status string) RetryFunc {
 	return func() (interface{}, error) {
 		query := `UPDATE GophermartOrders 
 		SET accrual=$1, status=$2
@@ -237,7 +237,7 @@ func (db *DBConnection) UpdateOrder(accrual float64, orderNum, status string) Re
 	}
 }
 
-func (db *DBConnection) AddLoyaltyPoints(loginID int, accrual float64) RetryFunc {
+func (db *DBConnection) AddLoyaltyPoints(loginID int, accrual float32) RetryFunc {
 	return func() (interface{}, error) {
 		query := `UPDATE GophermartUsers 
 		SET current_balance=current_balance+$1
@@ -254,7 +254,7 @@ func (db *DBConnection) AddLoyaltyPoints(loginID int, accrual float64) RetryFunc
 type OrderInfo struct {
 	Number     string  `json:"number"`
 	Status     string  `json:"status"`
-	Accrual    float64 `json:"accrual"`
+	Accrual    float32 `json:"accrual"`
 	UploadedAt string  `json:"uploaded_at"`
 }
 
@@ -285,8 +285,8 @@ func (db *DBConnection) GetOrdersInfo(loginID int) RetryFunc {
 }
 
 type BalanceInfo struct {
-	Current   float64 `json:"current"`
-	Withdrawn float64 `json:"withdrawn"`
+	Current   float32 `json:"current"`
+	Withdrawn float32 `json:"withdrawn"`
 }
 
 func (db *DBConnection) GetBalanceInfo(loginID int) RetryFunc {
@@ -309,7 +309,7 @@ func (db *DBConnection) GetBalanceInfo(loginID int) RetryFunc {
 	}
 }
 
-func (db *DBConnection) WithdrawBalance(loginID int, order string, sum float64) RetryFunc {
+func (db *DBConnection) WithdrawBalance(loginID int, order string, sum float32) RetryFunc {
 	return func() (interface{}, error) {
 		query := `SELECT current_balance, balance_withdrawn 
 		FROM GophermartUsers 
@@ -351,7 +351,7 @@ func (db *DBConnection) WithdrawBalance(loginID int, order string, sum float64) 
 
 type WithdrawalsInfo struct {
 	Order       string  `json:"order"`
-	Sum         float64 `json:"sum"`
+	Sum         float32 `json:"sum"`
 	ProcessedAt string  `json:"processed_at"`
 }
 
