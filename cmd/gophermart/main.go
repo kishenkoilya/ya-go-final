@@ -26,6 +26,7 @@ func main() {
 // go run ./cmd\gophermart\ -a localhost:8080 -d postgresql://postgres:gpadmin@localhost:5432/postgres?sslmode=disable
 // curl -i -X POST -H "Content-Type: application/json" -d "{\"login\": \"megalogin\", \"password\": \"pass1\"}" http://localhost:8080/api/user/register
 // curl -i -X POST -H "Content-Type: application/json" -d "{\"login\": \"megalogin\", \"password\": \"pass1\"}" http://localhost:8080/api/user/login
-// curl -X POST "http://localhost:8080/api/user/orders" -H "Authorization: $2a$10$oD/2HiiMP3OD8tc02cnRcum2SEglPSaedZHifFVKqPnQnGy5yz4f6" -H "Content-Type: text/plain" --data "4561261212345467"
+// curl -X POST "http://localhost:8080/api/user/orders" -H "Authorization: $argon2id$v=19$m=65536,t=1,p=4$iRGqQXe4YVHqGuOSPbqRU0Y6HrHvDvxCndleeQpZUxCofusEFsiVY/e91ycjqmKx -H "Content-Type: text/plain" --data "4561261212345467"
+// curl -X GET "http://localhost:8080/api/user/balance" -H "Authorization: $argon2id$v=19$m=65536,t=1,p=4$iRGqQXe4YVHqGuOSPbqRU0Y6HrHvDvxCndleeQpZUxCofusEFsiVY/e91ycjqmKx
 // 4561261212345464
 // 12345678903
