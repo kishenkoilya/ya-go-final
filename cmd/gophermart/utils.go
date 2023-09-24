@@ -23,6 +23,7 @@ func CheckPassword(password, hash string) bool {
 
 func CheckLuhn(number string) (bool, error) {
 	var sum int
+	sugar.Infoln(number)
 	for n, symb := range number {
 		digitStr := string(symb)
 		digit, err := strconv.Atoi(digitStr)
@@ -30,7 +31,7 @@ func CheckLuhn(number string) (bool, error) {
 			sugar.Errorln("Error converting digits in number.")
 			return false, err
 		}
-		if n%2 == 0 {
+		if n%2 != 0 {
 			digit *= 2
 			if digit > 9 {
 				digit -= 9
