@@ -248,10 +248,10 @@ func (db *DBConnection) AddLoyaltyPoints(loginID int, accrual float64) RetryFunc
 }
 
 type OrderInfo struct {
-	Number     string `json:"number"`
-	Status     string `json:"status"`
-	Accrual    string `json:"accrual"`
-	UploadedAt string `json:"uploaded_at"`
+	Number     string  `json:"number"`
+	Status     string  `json:"status"`
+	Accrual    float64 `json:"accrual"`
+	UploadedAt string  `json:"uploaded_at"`
 }
 
 func (db *DBConnection) GetOrdersInfo(loginID int) RetryFunc {
