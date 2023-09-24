@@ -207,14 +207,17 @@ func (db *DBConnection) LoadOrderNumber(loginID int, orderNum string) RetryFunc 
 		VALUES($1, $2, 'NEW', 0, 0, $3)`
 		res, err := db.conn.Exec(query, loginID, orderNum, time.Now().UTC())
 		if err != nil {
-			return -1, err
+			if err.(pgx.PgError).Code == "23505" {
+				return -1, nil
+			}
+			return nil, err
 		}
 		sugar.Infoln(res)
 		var orderID int
 		query = `SELECT id FROM GophermartOrders WHERE number=$1`
 		err = db.conn.QueryRow(query, orderNum).Scan(&orderID)
 		if err != nil {
-			return -1, err
+			return nil, err
 		}
 		return orderID, nil
 	}
@@ -260,7 +263,8 @@ func (db *DBConnection) GetOrdersInfo(loginID int) RetryFunc {
 		var orders []OrderInfo
 		query := `SELECT number, status, accrual, uploaded_at 
 		FROM GophermartOrders 
-		WHERE login_id=$1`
+		WHERE login_id=$1 
+		ORDER BY uploaded_at ASC`
 		res, err := db.conn.Query(query, loginID)
 		if err != nil {
 			return nil, err
@@ -356,7 +360,8 @@ func (db *DBConnection) GetWithdrawalsInfo(loginID int) RetryFunc {
 		var withdrawals []WithdrawalsInfo
 		query := `SELECT number, withdrawn, uploaded_at 
 		FROM GophermartOrders
-		WHERE login_id=$1`
+		WHERE login_id=$1 
+		ORDER BY uploaded_at ASC`
 		res, err := db.conn.Query(query, loginID)
 		if err != nil {
 			return nil, err
