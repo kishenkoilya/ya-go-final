@@ -326,7 +326,7 @@ func (db *DBConnection) WithdrawBalance(loginID int, order string, sum float64) 
 		}
 		query = `INSERT INTO GophermartOrders 
 		(login_id, number, status, accrual, withdrawn, uploaded_at) 
-		VALUES($1, $2, "NEW", 0, $3, $4)`
+		VALUES($1, $2, 'NEW', 0, $3, $4)`
 		res2, err := db.conn.Exec(query, loginID, order, sum, time.Now().UTC())
 		if err != nil {
 			return nil, err
