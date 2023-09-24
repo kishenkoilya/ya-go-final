@@ -100,7 +100,7 @@ func registerPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	sugar.Infoln(hash)
 	dbWriteNewUserInfoFunc := handlerVars.db.WriteNewUserInfo(loginInfo.Login, hash)
 	_, err = Retrypg(pgerrcode.ConnectionException, dbWriteNewUserInfoFunc)
 	if err != nil {
@@ -159,8 +159,14 @@ func loginPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		return
 	}
 	userInfo := obj.(*UserInfo)
-
-	check := CheckPassword(loginInfo.Password, userInfo.Hash)
+	sugar.Infoln(loginInfo.Password)
+	sugar.Infoln(userInfo.Hash)
+	check, err := CheckPassword(loginInfo.Password, userInfo.Hash)
+	if err != nil {
+		sugar.Errorln(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if !check {
 		http.Error(w, "Wrong password", http.StatusUnauthorized)
 		return

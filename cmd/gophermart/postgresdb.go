@@ -191,6 +191,7 @@ func (db *DBConnection) CheckAuthToken(auth string) RetryFunc {
 		WHERE token=$1`
 
 		var loginID int
+		sugar.Infoln(auth)
 		err := db.conn.QueryRow(query, auth).Scan(&loginID)
 		if err != nil {
 			return -1, err

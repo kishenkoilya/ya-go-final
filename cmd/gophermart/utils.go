@@ -1,24 +1,47 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"fmt"
 	"strconv"
+	"strings"
 
-	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/argon2"
 )
 
 func HashPassword(password string) (string, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	salt := make([]byte, 16)
+	_, err := rand.Read(salt)
 	if err != nil {
 		return "", err
 	}
-	fmt.Println(string(hashedPassword))
-	return string(hashedPassword), nil
+
+	hash := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
+
+	encoded := base64.RawStdEncoding.EncodeToString(append(salt, hash...))
+	return fmt.Sprintf("$argon2id$v=19$m=65536,t=1,p=4$%s", encoded), nil
 }
 
-func CheckPassword(password, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	return err == nil
+func CheckPassword(password, encodedHash string) (bool, error) {
+	sugar.Infoln(encodedHash)
+	parts := strings.Split(encodedHash, "$")
+	if len(parts) != 5 {
+		return false, fmt.Errorf("invalid hash format")
+	}
+	actualHashData := parts[4]
+
+	bytes, err := base64.RawStdEncoding.DecodeString(actualHashData)
+	if err != nil {
+		return false, err
+	}
+
+	salt, hash := bytes[:16], bytes[16:]
+
+	comparisonHash := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
+	sugar.Infoln(comparisonHash)
+	return subtle.ConstantTimeCompare(hash, comparisonHash) == 1, nil
 }
 
 func CheckLuhn(number string) (bool, error) {
