@@ -447,8 +447,8 @@ func withdrawalsPage(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	withdrawalsInfo := obj.(*WithdrawalsInfo)
-
+	withdrawalsInfo := obj.(*[]WithdrawalsInfo)
+	sugar.Infoln(withdrawalsInfo)
 	respJSON, err := json.Marshal(&withdrawalsInfo)
 	if err != nil {
 		sugar.Errorln(err.Error())
