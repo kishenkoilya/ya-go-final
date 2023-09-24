@@ -31,12 +31,14 @@ func CheckLuhn(number string) (bool, error) {
 			sugar.Errorln("Error converting digits in number.")
 			return false, err
 		}
-		if n%2 != 0 {
+		if n%2 == 0 {
 			digit *= 2
 			if digit > 9 {
 				digit -= 9
 			}
 		}
+		fmt.Println(sum)
+		fmt.Println(digit)
 		sum += digit
 	}
 	return sum%10 == 0, nil
