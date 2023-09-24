@@ -210,6 +210,8 @@ func uploadOrderNumber(loginID int, numb string, db *DBConnection) (int, error) 
 	if newOrderKey == -1 {
 		err := errors.New("order number already loaded")
 		return http.StatusConflict, err
+	} else if newOrderKey == -2 {
+		return http.StatusOK, nil
 	}
 	return http.StatusAccepted, nil
 }

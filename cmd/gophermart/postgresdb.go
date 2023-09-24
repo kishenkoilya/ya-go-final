@@ -208,6 +208,14 @@ func (db *DBConnection) LoadOrderNumber(loginID int, orderNum string) RetryFunc 
 		res, err := db.conn.Exec(query, loginID, orderNum, time.Now().UTC())
 		if err != nil {
 			if err.(pgx.PgError).Code == "23505" {
+				query = `SELECT login_id 
+				FROM GophermartOrders 
+				WHERE number=$1`
+				var lid int
+				err = db.conn.QueryRow(query, orderNum).Scan(&lid)
+				if lid == loginID {
+					return -2, nil
+				}
 				return -1, nil
 			}
 			return nil, err
@@ -361,7 +369,7 @@ func (db *DBConnection) GetWithdrawalsInfo(loginID int) RetryFunc {
 		query := `SELECT number, withdrawn, uploaded_at 
 		FROM GophermartOrders
 		WHERE login_id=$1 
-		ORDER BY uploaded_at ASC`
+		ORDER BY uploaded_at DESC`
 		res, err := db.conn.Query(query, loginID)
 		if err != nil {
 			return nil, err
