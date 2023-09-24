@@ -321,6 +321,7 @@ func getOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	sugar.Infoln(string(respJSON))
 	w.Write(respJSON)
 }
 
@@ -351,6 +352,7 @@ func balancePage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	sugar.Infoln(string(respJSON))
 	w.Write(respJSON)
 }
 
@@ -449,5 +451,6 @@ func withdrawalsPage(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	sugar.Infoln(string(respJSON))
 	w.Write(respJSON)
 }
