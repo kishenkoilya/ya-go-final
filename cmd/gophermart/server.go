@@ -202,7 +202,7 @@ func uploadOrderNumber(loginID int, numb string, db *DBConnection) (int, error) 
 	}
 	newOrderKey := obj.(int)
 	if newOrderKey == -1 {
-		err := errors.New("Order number already loaded")
+		err := errors.New("order number already loaded")
 		return http.StatusConflict, err
 	}
 	return http.StatusAccepted, nil
@@ -367,7 +367,7 @@ func withdrawBalance(loginID int, order string, sum float64, db *DBConnection) (
 	}
 	success := obj.(bool)
 	if !success {
-		err := errors.New("Not enough balance")
+		err := errors.New("not enough balance")
 		return http.StatusPaymentRequired, err
 	}
 	return http.StatusOK, nil

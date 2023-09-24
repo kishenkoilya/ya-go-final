@@ -16,7 +16,7 @@ type Config struct {
 
 func getVars() *Config {
 	address := flag.String("a", "", "An address the server will be running on")
-	databaseUri := flag.String("d", "", "An address database is located at")
+	databaseURI := flag.String("d", "", "An address database is located at")
 	accrualSystemAddress := flag.String("r", "", "An address of accrual system")
 	// postgresql://postgres:gpadmin@localhost:5432/postgres?sslmode=disable
 	flag.Parse()
@@ -30,7 +30,7 @@ func getVars() *Config {
 		cfg.Address = *address
 	}
 	if cfg.DatabaseURI == "" {
-		cfg.DatabaseURI = *databaseUri
+		cfg.DatabaseURI = *databaseURI
 	}
 	if cfg.AccrualSystemAddress == "" {
 		cfg.AccrualSystemAddress = *accrualSystemAddress

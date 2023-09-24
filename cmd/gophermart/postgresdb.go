@@ -166,6 +166,9 @@ func (db *DBConnection) CreateAuthToken(login, hash string) RetryFunc {
 		}
 
 		token, err := HashPassword(login + hash)
+		if err != nil {
+			return nil, err
+		}
 
 		query = `INSERT INTO GophermartAuthentications 
 		(login_id, token) 
