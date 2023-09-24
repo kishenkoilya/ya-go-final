@@ -212,7 +212,7 @@ func (db *DBConnection) LoadOrderNumber(loginID int, orderNum string) RetryFunc 
 				FROM GophermartOrders 
 				WHERE number=$1`
 				var lid int
-				err = db.conn.QueryRow(query, orderNum).Scan(&lid)
+				db.conn.QueryRow(query, orderNum).Scan(&lid)
 				if lid == loginID {
 					return -2, nil
 				}
