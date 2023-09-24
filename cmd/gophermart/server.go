@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -23,13 +26,17 @@ import (
 // GET /api/user/withdrawals — получение информации о выводе средств с накопительного счёта пользователем.
 
 func runServer(config *Config) {
-	var handlerVars *HandlerVars
-	obj, err := Retrypg(pgerrcode.ConnectionException, NewDBConnection(config.DatabaseUri))
+	obj, err := Retrypg(pgerrcode.ConnectionException, NewDBConnection(config.DatabaseURI))
 	if err != nil {
 		panic(err)
 	}
+	handlerVars := &HandlerVars{AccrualSystemAddress: &config.AccrualSystemAddress}
 	handlerVars.db = obj.(*DBConnection)
-	handlerVars.AccrualSystemAddress = &config.AccrualSystemAddress
+	dbCreateTokenFunc := handlerVars.db.InitTables()
+	_, err = Retrypg(pgerrcode.ConnectionException, dbCreateTokenFunc)
+	if err != nil {
+		panic("Could not init tables. " + err.Error())
+	}
 
 	router := httprouter.New()
 	router.POST("/api/user/register", LoggingMiddleware(GzipMiddleware(ParamsMiddleware(registerPage, handlerVars))))
@@ -50,6 +57,16 @@ func runServer(config *Config) {
 			sugar.Fatalw(err.Error(), "event", "start server")
 		}
 	}()
+	waitForShutdown(server, handlerVars)
+	fmt.Println("Programm shutdown")
+}
+
+func waitForShutdown(server *http.Server, handlerVars *HandlerVars) {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	<-signalChan
+	fmt.Println("HTTP-server shutdown.")
 }
 
 type LoginInfo struct {
@@ -67,34 +84,42 @@ func registerPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 	var loginInfo LoginInfo
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Could not read request body!", http.StatusInternalServerError)
+		sugar.Errorln(err.Error())
+		http.Error(w, "Could not read request body! "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	err = json.Unmarshal(bodyBytes, &loginInfo)
 	if err != nil {
-		http.Error(w, "Could not unmarshal login info!", http.StatusBadRequest)
+		sugar.Errorln(err.Error())
+		http.Error(w, "Could not unmarshal login info! "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	hash, salt, err := HashPassword(loginInfo.Password)
+	hash, err := HashPassword(loginInfo.Password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	dbWriteNewUserInfoFunc := handlerVars.db.WriteNewUserInfo(loginInfo.Login, hash, salt)
+	dbWriteNewUserInfoFunc := handlerVars.db.WriteNewUserInfo(loginInfo.Login, hash)
 	_, err = Retrypg(pgerrcode.ConnectionException, dbWriteNewUserInfoFunc)
 	if err != nil {
 		if err.Error() == "Login exists" {
-			http.Error(w, "Login name already exists. Enter another.", http.StatusConflict)
+			sugar.Errorln(err.Error())
+			http.Error(w, err.Error(), http.StatusConflict)
 			return
 		}
+		sugar.Errorln(err.Error())
 		http.Error(w, "Connection to database error", http.StatusInternalServerError)
 		return
 	}
 
 	dbCreateTokenFunc := handlerVars.db.CreateAuthToken(loginInfo.Login, hash)
 	obj, err := Retrypg(pgerrcode.ConnectionException, dbCreateTokenFunc)
+	if err != nil {
+		sugar.Errorln(err.Error())
+		http.Error(w, "Could not create authentication token. "+err.Error(), http.StatusInternalServerError)
+	}
 	token := obj.(string)
 	w.Header().Set("Authorization", token)
 	w.WriteHeader(http.StatusOK)
@@ -110,12 +135,14 @@ func loginPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var loginInfo LoginInfo
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "Could not read request body!", http.StatusInternalServerError)
+		sugar.Errorln(err.Error())
+		http.Error(w, "Could not read request body! "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	err = json.Unmarshal(bodyBytes, &loginInfo)
 	if err != nil {
-		http.Error(w, "Could not unmarshal login info!", http.StatusBadRequest)
+		sugar.Errorln(err.Error())
+		http.Error(w, "Could not unmarshal login info! "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -123,19 +150,17 @@ func loginPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	obj, err := Retrypg(pgerrcode.ConnectionException, dbGetUserInfoFunc)
 	if err != nil {
 		if err.Error() == "Login does not exist" {
-			http.Error(w, "Login does not exist. Wrong login", http.StatusUnauthorized)
+			sugar.Errorln(err.Error())
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
+		sugar.Errorln(err.Error())
 		http.Error(w, "Connection to database error", http.StatusInternalServerError)
 		return
 	}
 	userInfo := obj.(*UserInfo)
 
-	check, err := CheckPassword(loginInfo.Password, userInfo.Salt, userInfo.Hash)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	check := CheckPassword(loginInfo.Password, userInfo.Hash)
 	if !check {
 		http.Error(w, "Wrong password", http.StatusUnauthorized)
 		return
@@ -143,6 +168,10 @@ func loginPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	dbCreateTokenFunc := handlerVars.db.CreateAuthToken(loginInfo.Login, userInfo.Hash)
 	obj, err = Retrypg(pgerrcode.ConnectionException, dbCreateTokenFunc)
+	if err != nil {
+		sugar.Errorln(err.Error())
+		http.Error(w, "Could not create authentication token. "+err.Error(), http.StatusInternalServerError)
+	}
 	token := obj.(string)
 	w.Header().Set("Authorization", token)
 	w.WriteHeader(http.StatusOK)
@@ -158,7 +187,7 @@ func authorization(authData string, db *DBConnection) (int, int, error) {
 		return http.StatusInternalServerError, -1, err
 	}
 	loginID := obj.(int)
-	if loginID != -1 {
+	if loginID == -1 {
 		err := errors.New("Unauthorized")
 		return http.StatusUnauthorized, -1, err
 	}
@@ -168,11 +197,12 @@ func authorization(authData string, db *DBConnection) (int, int, error) {
 func uploadOrderNumber(loginID int, numb string, db *DBConnection) (int, error) {
 	obj, err := Retrypg(pgerrcode.ConnectionException, db.LoadOrderNumber(loginID, numb))
 	if err != nil {
+		sugar.Errorln(err.Error())
 		return http.StatusInternalServerError, err
 	}
 	newOrderKey := obj.(int)
 	if newOrderKey == -1 {
-		err := errors.New("Order number already loaded.")
+		err := errors.New("Order number already loaded")
 		return http.StatusConflict, err
 	}
 	return http.StatusAccepted, nil
@@ -189,11 +219,12 @@ func updateOrder(loginID int, numb string, handlerVars *HandlerVars) {
 	for {
 		resp, err := client.R().Get("http://" + *handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
 		if err != nil {
-			fmt.Println(err)
+			sugar.Errorln(err.Error())
 		}
 		var ans ASAAnswer
 		err = json.Unmarshal(resp.Body(), &ans)
 		if err != nil {
+			sugar.Errorln(err.Error())
 			time.Sleep(time.Second * 5)
 			continue
 		}
@@ -221,6 +252,7 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), code)
 		return
 	}
@@ -232,12 +264,14 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Could not read request body!", http.StatusInternalServerError)
 		return
 	}
 	orderNum := string(bodyBytes)
 	c, err := CheckLuhn(orderNum)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Luhn check could not be complete. "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -248,6 +282,7 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 
 	code, err = uploadOrderNumber(loginID, orderNum, handlerVars.db)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), code)
 		return
 	}
@@ -260,12 +295,14 @@ func getOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), code)
 		return
 	}
 
 	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetOrdersInfo(loginID))
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -277,6 +314,7 @@ func getOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 
 	respJSON, err := json.Marshal(&orderInfo)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Response from database coult not be marshaled to json. "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -291,12 +329,14 @@ func balancePage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), code)
 		return
 	}
 
 	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetBalanceInfo(loginID))
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -304,6 +344,7 @@ func balancePage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	respJSON, err := json.Marshal(&balanceInfo)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Response from database coult not be marshaled to json. "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -321,11 +362,12 @@ type WithdrawInfo struct {
 func withdrawBalance(loginID int, order string, sum float64, db *DBConnection) (int, error) {
 	obj, err := Retrypg(pgerrcode.ConnectionException, db.WithdrawBalance(loginID, order, sum))
 	if err != nil {
+		sugar.Errorln(err.Error())
 		return http.StatusInternalServerError, err
 	}
 	success := obj.(bool)
 	if !success {
-		err := errors.New("Not enough balance.")
+		err := errors.New("Not enough balance")
 		return http.StatusPaymentRequired, err
 	}
 	return http.StatusOK, nil
@@ -341,6 +383,7 @@ func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.P
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), code)
 		return
 	}
@@ -348,17 +391,20 @@ func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.P
 	var withdrawInfo *WithdrawInfo
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Could not read request body!", http.StatusInternalServerError)
 		return
 	}
 	err = json.Unmarshal(bodyBytes, &withdrawInfo)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Could not unmarshal withdraw info!", http.StatusBadRequest)
 		return
 	}
 
 	c, err := CheckLuhn(withdrawInfo.Order)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Luhn check could not be complete. "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -369,6 +415,7 @@ func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.P
 
 	code, err = withdrawBalance(loginID, withdrawInfo.Order, withdrawInfo.Sum, handlerVars.db)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), code)
 		return
 	}
@@ -380,12 +427,14 @@ func withdrawalsPage(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), code)
 		return
 	}
 
 	obj, err := Retrypg(pgerrcode.ConnectionException, handlerVars.db.GetWithdrawalsInfo(loginID))
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -393,6 +442,7 @@ func withdrawalsPage(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 
 	respJSON, err := json.Marshal(&withdrawalsInfo)
 	if err != nil {
+		sugar.Errorln(err.Error())
 		http.Error(w, "Response from database coult not be marshaled to json. "+err.Error(), http.StatusInternalServerError)
 		return
 	}

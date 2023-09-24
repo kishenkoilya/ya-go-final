@@ -1,53 +1,24 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
+	"fmt"
 	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-func HashPassword(password string) (string, string, error) {
-	salt := make([]byte, 16)
-	if _, err := rand.Read(salt); err != nil {
-		return "", "", err
-	}
-
+func HashPassword(password string) (string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-
-	hashWithSaltBase64 := HashBase64(string(salt), string(hashedPassword))
-
-	return hashWithSaltBase64, string(salt), nil
+	fmt.Println(string(hashedPassword))
+	return string(hashedPassword), nil
 }
 
-func HashBase64(words ...string) string {
-	var hashWithSalt []byte
-	for _, w := range words {
-		bw := []byte(w)
-		hashWithSalt = append(hashWithSalt, bw...)
-	}
-	hashWithSaltBase64 := base64.StdEncoding.EncodeToString(hashWithSalt)
-	return hashWithSaltBase64
-}
-
-func CheckPassword(password, salt, hash string) (bool, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return false, err
-	}
-
-	byteSalt := []byte(salt)
-	hashWithSalt := append(byteSalt, hashedPassword...)
-	hashWithSaltBase64 := base64.StdEncoding.EncodeToString(hashWithSalt)
-
-	if hashWithSaltBase64 != hash {
-		return false, nil
-	}
-	return true, nil
+func CheckPassword(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
 
 func CheckLuhn(number string) (bool, error) {
@@ -59,12 +30,14 @@ func CheckLuhn(number string) (bool, error) {
 			sugar.Errorln("Error converting digits in number.")
 			return false, err
 		}
-		if n%2 == 0 {
+		if n%2 != 0 {
 			digit *= 2
 			if digit > 9 {
 				digit -= 9
 			}
 		}
+		fmt.Println(digit)
+		fmt.Println(sum)
 		sum += digit
 	}
 	return sum%10 == 0, nil

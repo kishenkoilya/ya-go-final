@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	Address              string `env:"RUN_ADDRESS"`
-	DatabaseUri          string `env:"DATABASE_URI"`
+	DatabaseURI          string `env:"DATABASE_URI"`
 	AccrualSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS"`
 }
 
@@ -18,7 +18,7 @@ func getVars() *Config {
 	address := flag.String("a", "", "An address the server will be running on")
 	databaseUri := flag.String("d", "", "An address database is located at")
 	accrualSystemAddress := flag.String("r", "", "An address of accrual system")
-
+	// postgresql://postgres:gpadmin@localhost:5432/postgres?sslmode=disable
 	flag.Parse()
 
 	var cfg Config
@@ -29,8 +29,8 @@ func getVars() *Config {
 	if cfg.Address == "" {
 		cfg.Address = *address
 	}
-	if cfg.DatabaseUri == "" {
-		cfg.DatabaseUri = *databaseUri
+	if cfg.DatabaseURI == "" {
+		cfg.DatabaseURI = *databaseUri
 	}
 	if cfg.AccrualSystemAddress == "" {
 		cfg.AccrualSystemAddress = *accrualSystemAddress
@@ -40,5 +40,5 @@ func getVars() *Config {
 
 func (conf *Config) printConfig() {
 	fmt.Printf("Address: %s; Database Uri: %s; Accrual System Address: %s;\n",
-		conf.Address, conf.DatabaseUri, conf.AccrualSystemAddress)
+		conf.Address, conf.DatabaseURI, conf.AccrualSystemAddress)
 }

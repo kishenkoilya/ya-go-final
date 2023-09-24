@@ -55,9 +55,9 @@ type DBConnection struct {
 	conn *pgx.Conn
 }
 
-func NewDBConnection(databaseUri string) RetryFunc {
+func NewDBConnection(DatabaseURI string) RetryFunc {
 	return func() (interface{}, error) {
-		connConfig, err := pgx.ParseConnectionString(databaseUri)
+		connConfig, err := pgx.ParseConnectionString(DatabaseURI)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +78,6 @@ func (db *DBConnection) InitTables() RetryFunc {
 		query := `CREATE TABLE IF NOT EXISTS GophermartUsers (
 			id SERIAL PRIMARY KEY, 
 			login VARCHAR(250) UNIQUE, 
-			salt BYTEA NOT NULL, 
 			password_hash TEXT, 
 			current_balance DOUBLE PRECISION, 
 			balance_withdrawn DOUBLE PRECISION);`
@@ -90,9 +89,8 @@ func (db *DBConnection) InitTables() RetryFunc {
 
 		query = `CREATE TABLE IF NOT EXISTS GophermartAuthentications (
 			id SERIAL PRIMARY KEY, 
-			login_id INTEGER REFERENCES GophermartUsers(id) NOT NULL, 
-			token TEXT NOT NULL, 
-			active BOOLEAN);`
+			login_id INTEGER REFERENCES GophermartUsers(id) NOT NULL UNIQUE, 
+			token TEXT NOT NULL);`
 		res, err = db.conn.Exec(query)
 		if err != nil {
 			return nil, err
@@ -117,12 +115,12 @@ func (db *DBConnection) InitTables() RetryFunc {
 	}
 }
 
-func (db *DBConnection) WriteNewUserInfo(login, hash, salt string) RetryFunc {
+func (db *DBConnection) WriteNewUserInfo(login, hash string) RetryFunc {
 	return func() (interface{}, error) {
 		query := `INSERT INTO GophermartUsers 
-		(login, salt, password_hash, current_balance, balance_withdrawn) 
-		VALUES($1, $2, $3, 0, 0)`
-		res, err := db.conn.Exec(query, login, hash, salt)
+		(login, password_hash, current_balance, balance_withdrawn) 
+		VALUES($1, $2, 0, 0)`
+		res, err := db.conn.Exec(query, login, hash)
 		if err != nil {
 			return nil, err
 		}
@@ -134,22 +132,22 @@ func (db *DBConnection) WriteNewUserInfo(login, hash, salt string) RetryFunc {
 
 type UserInfo struct {
 	Login string
-	Salt  string
 	Hash  string
 }
 
 func (db *DBConnection) GetUserInfo(login string) RetryFunc {
 	return func() (interface{}, error) {
-		query := `SELECT salt, password_hash 
+		query := `SELECT password_hash 
 		FROM GophermartUsers 
 		WHERE login=$1`
+		sugar.Infoln(login)
 		res, err := db.conn.Query(query, login)
 		if err != nil {
 			return nil, err
 		}
 		uInfo := UserInfo{Login: login}
 		for res.Next() {
-			err := res.Scan(&uInfo.Salt, &uInfo.Hash)
+			err := res.Scan(&uInfo.Hash)
 			if err != nil {
 				return nil, err
 			}
@@ -160,24 +158,20 @@ func (db *DBConnection) GetUserInfo(login string) RetryFunc {
 
 func (db *DBConnection) CreateAuthToken(login, hash string) RetryFunc {
 	return func() (interface{}, error) {
-		query := `SELECT COUNT(*) FROM GophermartAuthentications`
-		var authNum int
-		err := db.conn.QueryRow(query).Scan(&authNum)
-		if err != nil {
-			return nil, err
-		}
-		query = `SELECT id FROM GophermartUsers WHERE login=$1`
+		query := `SELECT id FROM GophermartUsers WHERE login=$1`
 		var loginID int
-		err = db.conn.QueryRow(query, login).Scan(&loginID)
+		err := db.conn.QueryRow(query, login).Scan(&loginID)
 		if err != nil {
 			return nil, err
 		}
 
-		token := HashBase64(fmt.Sprint(authNum), hash, fmt.Sprint(loginID+1))
+		token, err := HashPassword(login + hash)
 
 		query = `INSERT INTO GophermartAuthentications 
 		(login_id, token) 
-		VALUES($1, $2)`
+		VALUES ($1, $2)
+		ON CONFLICT (login_id) 
+		DO UPDATE SET token = $2`
 		res, err := db.conn.Exec(query, loginID, token)
 		if err != nil {
 			return nil, err
@@ -191,7 +185,8 @@ func (db *DBConnection) CheckAuthToken(auth string) RetryFunc {
 	return func() (interface{}, error) {
 		query := `SELECT login_id 
 		FROM GophermartAuthentications 
-		WHERE token=$1 AND active=TRUE`
+		WHERE token=$1`
+
 		var loginID int
 		err := db.conn.QueryRow(query, auth).Scan(&loginID)
 		if err != nil {
@@ -205,7 +200,7 @@ func (db *DBConnection) LoadOrderNumber(loginID int, orderNum string) RetryFunc 
 	return func() (interface{}, error) {
 		query := `INSERT INTO GophermartOrders 
 		(login_id, number, status, accrual, withdrawn, uploaded_at) 
-		VALUES($1, $2, "NEW", 0, 0, $3)`
+		VALUES($1, $2, 'NEW', 0, 0, $3)`
 		res, err := db.conn.Exec(query, loginID, orderNum, time.Now().UTC())
 		if err != nil {
 			return -1, err
@@ -250,10 +245,10 @@ func (db *DBConnection) AddLoyaltyPoints(loginID int, accrual float64) RetryFunc
 }
 
 type OrderInfo struct {
-	Number      string `json:"number"`
-	Status      string `json:"status"`
-	Accrual     string `json:"accrual"`
-	Uploaded_at string `json:"uploaded_at"`
+	Number     string `json:"number"`
+	Status     string `json:"status"`
+	Accrual    string `json:"accrual"`
+	UploadedAt string `json:"uploaded_at"`
 }
 
 func (db *DBConnection) GetOrdersInfo(loginID int) RetryFunc {
@@ -273,7 +268,7 @@ func (db *DBConnection) GetOrdersInfo(loginID int) RetryFunc {
 			if err != nil {
 				return nil, err
 			}
-			order.Uploaded_at = myTime.Time.Format(time.RFC3339)
+			order.UploadedAt = myTime.Time.Format(time.RFC3339)
 			orders = append(orders, order)
 		}
 
