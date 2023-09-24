@@ -309,7 +309,7 @@ func (db *DBConnection) WithdrawBalance(loginID int, order string, sum float64) 
 	return func() (interface{}, error) {
 		query := `SELECT current_balance, balance_withdrawn 
 		FROM GophermartUsers 
-		WHERE login_id=$1`
+		WHERE id=$1`
 		res, err := db.conn.Query(query, loginID)
 		if err != nil {
 			return nil, err
