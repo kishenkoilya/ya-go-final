@@ -233,6 +233,7 @@ type ASAAnswer struct {
 
 func updateOrder(loginID int, numb string, handlerVars *HandlerVars, ctx context.Context) {
 	client := resty.New()
+loop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -265,7 +266,7 @@ func updateOrder(loginID int, numb string, handlerVars *HandlerVars, ctx context
 			}
 
 			if ans.Status == "INVALID" || ans.Status == "PROCESSED" {
-				break
+				break loop
 			}
 		}
 	}
