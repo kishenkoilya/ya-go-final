@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,7 +76,11 @@ type LoginInfo struct {
 }
 
 func registerPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	handlerVars, ok := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	if !ok {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+	}
+
 	if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		http.Error(w, "Request content type is not json!", http.StatusBadRequest)
 		return
@@ -126,7 +131,11 @@ func registerPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 }
 
 func loginPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	handlerVars, ok := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	if !ok {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+	}
+
 	if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		http.Error(w, "Request content type is not json!", http.StatusBadRequest)
 		return
@@ -222,42 +231,52 @@ type ASAAnswer struct {
 	Accrual float32 `json:"accrual"`
 }
 
-func updateOrder(loginID int, numb string, handlerVars *HandlerVars) {
+func updateOrder(loginID int, numb string, handlerVars *HandlerVars, ctx context.Context) {
 	client := resty.New()
 	for {
-		resp, err := client.R().Get(*handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
-		if err != nil {
-			sugar.Errorln(err.Error())
-		}
-		var ans ASAAnswer
-		err = json.Unmarshal(resp.Body(), &ans)
-		if err != nil {
-			sugar.Errorln(err.Error())
-			time.Sleep(time.Second * 5)
-			continue
-		}
-		sugar.Infoln(ans)
+		select {
+		case <-ctx.Done():
+			sugar.Infoln("Operation was canselled by user")
+			return
+		default:
+			resp, err := client.R().Get(*handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
+			if err != nil {
+				sugar.Errorln(err.Error())
+			}
+			var ans ASAAnswer
+			err = json.Unmarshal(resp.Body(), &ans)
+			if err != nil {
+				sugar.Errorln(err.Error())
+				time.Sleep(time.Second * 5)
+				continue
+			}
+			sugar.Infoln(ans)
 
-		_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.UpdateOrder(ans.Accrual, ans.Order, ans.Status))
-		if err != nil {
-			panic(err)
-		}
-
-		if ans.Accrual > 0 {
-			_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.AddLoyaltyPoints(loginID, ans.Accrual))
+			_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.UpdateOrder(ans.Accrual, ans.Order, ans.Status))
 			if err != nil {
 				panic(err)
 			}
-		}
 
-		if ans.Status == "INVALID" || ans.Status == "PROCESSED" {
-			break
+			if ans.Accrual > 0 {
+				_, err = Retrypg(pgerrcode.ConnectionException, handlerVars.db.AddLoyaltyPoints(loginID, ans.Accrual))
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			if ans.Status == "INVALID" || ans.Status == "PROCESSED" {
+				break
+			}
 		}
 	}
 }
 
 func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	handlerVars, ok := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	if !ok {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+	}
+
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
@@ -295,12 +314,16 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		http.Error(w, err.Error(), code)
 		return
 	}
-	go updateOrder(loginID, orderNum, handlerVars)
+	go updateOrder(loginID, orderNum, handlerVars, r.Context())
 	w.WriteHeader(code)
 }
 
 func getOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	handlerVars, ok := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	if !ok {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+	}
+
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
@@ -335,7 +358,11 @@ func getOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 }
 
 func balancePage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	handlerVars, ok := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	if !ok {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+	}
+
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
@@ -385,7 +412,11 @@ func withdrawBalance(loginID int, order string, sum float32, db *DBConnection) (
 }
 
 func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	handlerVars, ok := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	if !ok {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+	}
+
 	if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		http.Error(w, "Request content type is not json!", http.StatusBadRequest)
 		return
@@ -434,7 +465,11 @@ func balanceWithdrawPage(w http.ResponseWriter, r *http.Request, ps httprouter.P
 }
 
 func withdrawalsPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	handlerVars := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	handlerVars, ok := r.Context().Value(HandlerVars{}).(*HandlerVars)
+	if !ok {
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+	}
+
 	auth := r.Header.Get("Authorization")
 	code, loginID, err := authorization(auth, handlerVars.db)
 	if err != nil {
