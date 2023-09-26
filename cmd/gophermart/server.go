@@ -240,7 +240,7 @@ loop:
 			sugar.Infoln("Operation was canselled by user")
 			return
 		default:
-			resp, err := client.R().Get(*handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
+			resp, err := client.R().SetContext(ctx).Get(*handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
 			if err != nil {
 				sugar.Errorln(err.Error())
 			}
