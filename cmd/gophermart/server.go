@@ -231,7 +231,7 @@ type ASAAnswer struct {
 	Accrual float32 `json:"accrual"`
 }
 
-func updateOrder(loginID int, numb string, handlerVars *HandlerVars, ctx context.Context) {
+func updateOrder(ctx context.Context, loginID int, numb string, handlerVars *HandlerVars) {
 	client := resty.New()
 loop:
 	for {
@@ -240,7 +240,7 @@ loop:
 			sugar.Infoln("Operation was canselled by user")
 			return
 		default:
-			resp, err := client.R().SetContext(ctx).Get(*handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
+			resp, err := client.R().Get(*handlerVars.AccrualSystemAddress + "/api/orders/" + numb)
 			if err != nil {
 				sugar.Errorln(err.Error())
 			}
@@ -315,7 +315,7 @@ func postOrdersPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		http.Error(w, err.Error(), code)
 		return
 	}
-	go updateOrder(loginID, orderNum, handlerVars, r.Context())
+	go updateOrder(r.Context(), loginID, orderNum, handlerVars)
 	w.WriteHeader(code)
 }
 
